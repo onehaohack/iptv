@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+set -eu
+
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+if [ -f "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" ]; then
+  exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" -jar "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" "$@"
+fi
+
+if command -v gradle >/dev/null 2>&1; then
+  exec gradle "$@"
+fi
+
+cat >&2 <<'EOF'
+No Gradle runtime was found.
+
+Install a JDK and Android SDK, then either:
+  - install Gradle on PATH, or
+  - generate a standard Gradle wrapper in tvbox with `gradle wrapper`.
+
+Expected build command:
+  cd tvbox && ./gradlew :app:assembleDebug
+EOF
+exit 127
