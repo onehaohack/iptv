@@ -1,25 +1,24 @@
 # Onehao IPTV Box
 
-Android TV sideload app for a small curated set of official/public China IPTV streams.
+Android TV sideload app for a focused set of IPTV streams bundled in this repository.
 
 ## Source Policy
 
-The bundled playlist is generated from:
+The bundled playlist is generated from `streams/*.m3u` files in this repository, filtered for:
 
-- `streams/cn.m3u`
-- `streams/cn_cctv.m3u`
-- `streams/cn_cgtn.m3u`
+- English BBC/CNN channels
+- China channels, including Liaoning TV sources
 
-The generator only keeps selected official or broadcaster-owned public HLS hosts and excludes third-party aggregation sources such as `112114`/Douyu proxy lists. The output is:
+The output is:
 
 ```text
-tvbox/app/src/main/assets/channels_cn_public.m3u
+tvbox/app/src/main/assets/channels_all.m3u
 ```
 
 Regenerate it with:
 
 ```bash
-npx tsx scripts/commands/playlist/exportChinaPublic.ts
+npm run playlist:export:tvbox
 ```
 
 ## Build
