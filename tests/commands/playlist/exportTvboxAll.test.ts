@@ -104,6 +104,43 @@ describe('playlist:export:tvbox', () => {
     expect(playlist).not.toContain('支持作者')
   })
 
+  it('exports Xiangcun Love 18 episodes as a dedicated folder', () => {
+    const episodeLines = Array.from({ length: 40 }, (_, index) => {
+      const episode = (index + 1).toString().padStart(2, '0')
+      return [
+        `#EXTINF:-1 tvg-id="" group-title="乡村爱情 18",乡村爱情18 第${episode}集`,
+        `https://example.com/xiangcunaiqing18-${episode}.m3u8`
+      ]
+    }).flat()
+    fs.writeFileSync(
+      pathToFileURL('tests/__data__/output/streams/cn_xiangcunaiqing18.m3u'),
+      [
+        '#EXTM3U',
+        '# Source page: https://m.huisanpay.com/play/71282-1-1.html',
+        ...episodeLines
+      ].join('\n')
+    )
+
+    const cmd =
+      'cross-env ROOT_DIR=tests/__data__/output tsx scripts/commands/playlist/exportTvboxAll.ts'
+    execSync(cmd, { encoding: 'utf8' })
+
+    const playlist = fs.readFileSync(
+      pathToFileURL('tests/__data__/output/tvbox/app/src/main/assets/channels_all.m3u'),
+      'utf8'
+    )
+
+    const episodeNames = Array.from(
+      playlist.matchAll(/group-title="乡村爱情 18",乡村爱情18 第(\d{2})集/g),
+      match => match[1],
+    )
+    const expectedEpisodes = Array.from({ length: 40 }, (_, index) =>
+      (index + 1).toString().padStart(2, '0')
+    )
+
+    expect(episodeNames).toEqual(expectedEpisodes)
+  })
+
   it('places 1080p streams before other resolutions', () => {
     fs.writeFileSync(
       pathToFileURL('tests/__data__/output/streams/quality.m3u'),

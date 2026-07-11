@@ -2,6 +2,7 @@ package org.onehao.iptvbox
 
 const val FAVORITES_CATEGORY_NAME = "我的收藏"
 const val LATEST_MOVIES_CATEGORY_NAME = "最新电影"
+const val XIANGCUN_LOVE_18_CATEGORY_NAME = "乡村爱情 18"
 private const val VBSKYCN_CATEGORY_NAME = "新加国内源"
 
 fun categorizeChannels(channels: List<Channel>): List<ChannelCategory> {
@@ -25,8 +26,9 @@ fun categorizeChannels(channels: List<Channel>): List<ChannelCategory> {
 private fun categoryOrder(name: String): Int {
     return when (name) {
         LATEST_MOVIES_CATEGORY_NAME -> 0
-        VBSKYCN_CATEGORY_NAME -> 1
-        else -> 2
+        XIANGCUN_LOVE_18_CATEGORY_NAME -> 1
+        VBSKYCN_CATEGORY_NAME -> 2
+        else -> 3
     }
 }
 

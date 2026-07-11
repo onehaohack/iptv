@@ -1,7 +1,6 @@
 package org.onehao.iptvbox
 
 import android.app.Activity
-import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -23,9 +22,9 @@ import androidx.media3.ui.PlayerView
 private const val PLAYLIST_ASSET = "channels_all.m3u"
 private const val FALLBACK_PLAYLIST_ASSET = "channels_cn_public.m3u"
 private const val LOG_TAG = "OnehaoIptv"
-private const val PREFS_NAME = "onehao_iptv_box"
-private const val FAVORITES_PREF = "favorite_channel_names"
 private const val BUFFERING_SOURCE_TIMEOUT_MS = 8_000L
+private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+private const val RESUME_MIN_POSITION_MS = 5_000L
 private const val MOVIE_SEEK_STEP_MS = 30_000L
 
 class MainActivity : Activity() {
@@ -45,15 +44,24 @@ class MainActivity : Activity() {
     private var selectedCategoryName = FAVORITES_CATEGORY_NAME
     private var currentChannel: Channel? = null
     private var currentSourceIndex = 0
+    private var playbackEnded = false
+    private lateinit var favoriteStore: FavoriteStore
+    private lateinit var playbackHistory: PlaybackHistory
     private val bufferingHandler = Handler(Looper.getMainLooper())
     private val bufferingTimeout = Runnable { tryNextSourceAfterBufferingTimeout() }
+    private val progressSaver = Runnable {
+        savePlaybackProgress()
+        scheduleProgressSave()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         player = ExoPlayer.Builder(this).build()
-        favoriteNames = loadFavoriteNames()
+        favoriteStore = FavoriteStore(this)
+        playbackHistory = PlaybackHistory(this)
+        favoriteNames = favoriteStore.load()
         channels = applyFavorites(loadChannels())
         categories = categorizeChannels(channels)
         visibleChannels = categories.firstOrNull()?.channels ?: emptyList()
@@ -90,12 +98,16 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         cancelBufferingTimeout()
+        cancelProgressSave()
+        savePlaybackProgress()
         player.pause()
     }
 
     override fun onDestroy() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         cancelBufferingTimeout()
+        cancelProgressSave()
+        savePlaybackProgress()
         player.release()
         super.onDestroy()
     }
@@ -145,6 +157,12 @@ class MainActivity : Activity() {
             return
         }
 
+        if (category.name == XIANGCUN_LOVE_18_CATEGORY_NAME && playLastWatchedChannelInCategory(category)) {
+            subPanel.visibility = View.VISIBLE
+            channelListView.requestFocus()
+            return
+        }
+
         subPanel.visibility = View.VISIBLE
         channelListView.requestFocus()
     }
@@ -162,7 +180,7 @@ class MainActivity : Activity() {
 
     private fun handleMovieSeekKey(keyCode: Int): Boolean {
         val channel = currentChannel ?: return false
-        if (channel.categoryName != LATEST_MOVIES_CATEGORY_NAME) return false
+        if (!playbackHistory.shouldRemember(channel)) return false
 
         return when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -191,7 +209,8 @@ class MainActivity : Activity() {
             (currentPosition + deltaMs).coerceIn(0L, duration)
         }
         player.seekTo(targetPosition)
-        Log.i(LOG_TAG, "Seek ${currentChannel?.name} from $currentPosition to $targetPosition")
+        savePlaybackProgress(targetPosition)
+        Log.i(LOG_TAG, "Seek from $currentPosition to $targetPosition")
         showStatus("进度 ${formatPlaybackTime(targetPosition)}")
     }
 
@@ -208,9 +227,12 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
+        savePlaybackProgress()
         currentChannel = channel
-        currentSourceIndex = 0
-        playCurrentSource()
+        playbackEnded = false
+        val progress = playbackHistory.load(channel)
+        currentSourceIndex = progress?.sourceIndex ?: 0
+        playCurrentSource(progress?.positionMs ?: 0L)
     }
 
     private fun toggleFavorite(channel: Channel) {
@@ -219,7 +241,7 @@ class MainActivity : Activity() {
         } else {
             favoriteNames + channel.name
         }
-        saveFavoriteNames(favoriteNames)
+        favoriteStore.save(favoriteNames)
         channels = applyFavorites(channels)
         categories = categorizeChannels(channels)
         refreshCategories()
@@ -243,13 +265,18 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun playCurrentSource() {
+    private fun playCurrentSource(resumePositionMs: Long = 0L) {
         val channel = currentChannel ?: return
         val source = channel.sources.getOrNull(currentSourceIndex) ?: return
         showStatus("Loading ${channel.name} (${currentSourceIndex + 1}/${channel.sources.size})")
-        Log.i(LOG_TAG, "Playing ${channel.name} source ${currentSourceIndex + 1}/${channel.sources.size}: $source")
+        Log.i(LOG_TAG, "Playing source ${currentSourceIndex + 1}/${channel.sources.size}")
         cancelBufferingTimeout()
-        player.setMediaItem(MediaItem.fromUri(source))
+        if (resumePositionMs >= RESUME_MIN_POSITION_MS) {
+            player.setMediaItem(MediaItem.fromUri(source), resumePositionMs)
+            showStatus("继续播放 ${channel.name} ${formatPlaybackTime(resumePositionMs)}")
+        } else {
+            player.setMediaItem(MediaItem.fromUri(source))
+        }
         player.prepare()
         player.playWhenReady = true
         scheduleBufferingTimeout()
@@ -262,9 +289,14 @@ class MainActivity : Activity() {
             return false
         }
 
+        val resumePositionMs = if (playbackHistory.shouldRemember(channel)) {
+            player.currentPosition
+        } else {
+            0L
+        }
         currentSourceIndex = nextSourceIndex
         showStatus("Source failed: ${error.errorCodeName}. Trying ${currentSourceIndex + 1}/${channel.sources.size}")
-        playCurrentSource()
+        playCurrentSource(resumePositionMs)
         return true
     }
 
@@ -275,10 +307,15 @@ class MainActivity : Activity() {
             return
         }
 
+        val resumePositionMs = if (playbackHistory.shouldRemember(channel)) {
+            player.currentPosition
+        } else {
+            0L
+        }
         currentSourceIndex = nextSourceIndex
         showStatus("Buffering too long. Trying ${currentSourceIndex + 1}/${channel.sources.size}")
-        Log.i(LOG_TAG, "Buffering timeout for ${channel.name}; trying source ${currentSourceIndex + 1}/${channel.sources.size}")
-        playCurrentSource()
+        Log.i(LOG_TAG, "Buffering timeout; trying source ${currentSourceIndex + 1}/${channel.sources.size}")
+        playCurrentSource(resumePositionMs)
     }
 
     private fun scheduleBufferingTimeout() {
@@ -288,6 +325,15 @@ class MainActivity : Activity() {
 
     private fun cancelBufferingTimeout() {
         bufferingHandler.removeCallbacks(bufferingTimeout)
+    }
+
+    private fun scheduleProgressSave() {
+        cancelProgressSave()
+        bufferingHandler.postDelayed(progressSaver, PROGRESS_SAVE_INTERVAL_MS)
+    }
+
+    private fun cancelProgressSave() {
+        bufferingHandler.removeCallbacks(progressSaver)
     }
 
     private fun createPlayerListener(): Player.Listener {
@@ -300,15 +346,24 @@ class MainActivity : Activity() {
                     }
                     Player.STATE_READY -> {
                         cancelBufferingTimeout()
+                        scheduleProgressSave()
                         hideStatus()
                     }
-                    Player.STATE_ENDED -> showStatus("Stream ended")
-                    Player.STATE_IDLE -> cancelBufferingTimeout()
+                    Player.STATE_ENDED -> {
+                        cancelProgressSave()
+                        clearPlaybackProgress()
+                        showStatus("Stream ended")
+                    }
+                    Player.STATE_IDLE -> {
+                        cancelBufferingTimeout()
+                        cancelProgressSave()
+                    }
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 cancelBufferingTimeout()
+                cancelProgressSave()
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     showStatus("Refreshing live stream")
                     player.seekToDefaultPosition()
@@ -339,16 +394,24 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadFavoriteNames(): Set<String> {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getStringSet(FAVORITES_PREF, emptySet()) ?: emptySet()
+    private fun playLastWatchedChannelInCategory(category: ChannelCategory): Boolean {
+        val channelName = playbackHistory.lastChannelName(category) ?: return false
+        val channel = category.channels.firstOrNull { it.name == channelName } ?: return false
+
+        play(channel)
+        return true
     }
 
-    private fun saveFavoriteNames(names: Set<String>) {
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putStringSet(FAVORITES_PREF, names)
-            .apply()
+    private fun savePlaybackProgress(positionMs: Long = player.currentPosition) {
+        val channel = currentChannel ?: return
+        if (playbackEnded) return
+        playbackHistory.save(channel, currentSourceIndex, positionMs)
+    }
+
+    private fun clearPlaybackProgress() {
+        val channel = currentChannel ?: return
+        playbackEnded = true
+        playbackHistory.clear(channel)
     }
 
     private fun loadChannelsFromAsset(assetName: String): List<Channel> {
@@ -373,5 +436,4 @@ class MainActivity : Activity() {
     private fun hideStatus() {
         statusView.visibility = View.GONE
     }
-
 }
