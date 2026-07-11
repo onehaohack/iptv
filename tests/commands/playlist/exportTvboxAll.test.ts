@@ -109,7 +109,9 @@ describe('playlist:export:tvbox', () => {
       const episode = (index + 1).toString().padStart(2, '0')
       return [
         `#EXTINF:-1 tvg-id="" group-title="乡村爱情 18",乡村爱情18 第${episode}集`,
-        `https://example.com/xiangcunaiqing18-${episode}.m3u8`
+        `https://example.com/xiangcunaiqing18-primary-${episode}.m3u8`,
+        `#EXTINF:-1 tvg-id="" group-title="乡村爱情 18",乡村爱情18 第${episode}集`,
+        `https://example.com/xiangcunaiqing18-fallback-${episode}.m3u8`
       ]
     }).flat()
     fs.writeFileSync(
@@ -130,15 +132,17 @@ describe('playlist:export:tvbox', () => {
       'utf8'
     )
 
-    const episodeNames = Array.from(
+    const exportedEpisodes = Array.from(
       playlist.matchAll(/group-title="乡村爱情 18",乡村爱情18 第(\d{2})集/g),
       match => match[1],
     )
+    const episodeNames = Array.from(new Set(exportedEpisodes))
     const expectedEpisodes = Array.from({ length: 40 }, (_, index) =>
       (index + 1).toString().padStart(2, '0')
     )
 
     expect(episodeNames).toEqual(expectedEpisodes)
+    expect(exportedEpisodes).toHaveLength(80)
   })
 
   it('places 1080p streams before other resolutions', () => {

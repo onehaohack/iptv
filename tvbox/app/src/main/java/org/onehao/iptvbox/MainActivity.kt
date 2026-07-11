@@ -16,6 +16,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
@@ -364,6 +365,7 @@ class MainActivity : Activity() {
             override fun onPlayerError(error: PlaybackException) {
                 cancelBufferingTimeout()
                 cancelProgressSave()
+                logHttpPlaybackError(error)
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     showStatus("Refreshing live stream")
                     player.seekToDefaultPosition()
@@ -377,6 +379,15 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun logHttpPlaybackError(error: PlaybackException) {
+        val httpError = error.cause as? HttpDataSource.InvalidResponseCodeException ?: return
+        val uri = httpError.dataSpec.uri
+        Log.w(
+            LOG_TAG,
+            "HTTP playback error ${httpError.responseCode} host=${uri.host}",
+        )
     }
 
     private fun loadChannels(): List<Channel> {
