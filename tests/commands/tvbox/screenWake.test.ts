@@ -13,6 +13,22 @@ describe('tvbox screen wake behavior', () => {
     expect(source).toContain('window.addFlags')
   })
 
+  it('keeps a bounded forward buffer in memory for unstable HLS networks', () => {
+    const activityPath = path.resolve(
+      __dirname,
+      '../../../tvbox/app/src/main/java/org/onehao/iptvbox/MainActivity.kt',
+    )
+    const source = fs.readFileSync(activityPath, 'utf8')
+
+    expect(source).toContain('import androidx.media3.exoplayer.DefaultLoadControl')
+    expect(source).toContain('private const val MIN_BUFFER_MS = 30_000')
+    expect(source).toContain('private const val MAX_BUFFER_MS = 90_000')
+    expect(source).toContain('DefaultLoadControl.Builder()')
+    expect(source).toContain('setBufferDurationsMs(')
+    expect(source).toContain('setPrioritizeTimeOverSizeThresholds(true)')
+    expect(source).toContain('.setLoadControl(loadControl)')
+  })
+
   it('persists playback progress for movies and series episodes', () => {
     const activityPath = path.resolve(
       __dirname,

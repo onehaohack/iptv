@@ -17,6 +17,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
@@ -27,6 +28,10 @@ private const val BUFFERING_SOURCE_TIMEOUT_MS = 8_000L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 private const val RESUME_MIN_POSITION_MS = 1_000L
 private const val MOVIE_SEEK_STEP_MS = 30_000L
+private const val MIN_BUFFER_MS = 30_000
+private const val MAX_BUFFER_MS = 90_000
+private const val BUFFER_FOR_PLAYBACK_MS = 2_500
+private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 5_000
 
 class MainActivity : Activity() {
     private lateinit var player: ExoPlayer
@@ -59,7 +64,18 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        player = ExoPlayer.Builder(this).build()
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                MIN_BUFFER_MS,
+                MAX_BUFFER_MS,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+        player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
+            .build()
         favoriteStore = FavoriteStore(this)
         playbackHistory = PlaybackHistory(this)
         favoriteNames = favoriteStore.load()
