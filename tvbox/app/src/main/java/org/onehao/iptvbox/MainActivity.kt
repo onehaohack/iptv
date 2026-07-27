@@ -25,7 +25,7 @@ private const val FALLBACK_PLAYLIST_ASSET = "channels_cn_public.m3u"
 private const val LOG_TAG = "OnehaoIptv"
 private const val BUFFERING_SOURCE_TIMEOUT_MS = 8_000L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
-private const val RESUME_MIN_POSITION_MS = 5_000L
+private const val RESUME_MIN_POSITION_MS = 1_000L
 private const val MOVIE_SEEK_STEP_MS = 30_000L
 
 class MainActivity : Activity() {
@@ -117,6 +117,14 @@ class MainActivity : Activity() {
         if (
             event.action == KeyEvent.ACTION_DOWN &&
             sidePanel.visibility != View.VISIBLE &&
+            togglePlayback(event.keyCode)
+        ) {
+            return true
+        }
+
+        if (
+            event.action == KeyEvent.ACTION_DOWN &&
+            sidePanel.visibility != View.VISIBLE &&
             handleMovieSeekKey(event.keyCode)
         ) {
             return true
@@ -158,10 +166,8 @@ class MainActivity : Activity() {
             return
         }
 
-        if (category.name == XIANGCUN_LOVE_18_CATEGORY_NAME && playLastWatchedChannelInCategory(category)) {
-            subPanel.visibility = View.VISIBLE
-            channelListView.requestFocus()
-            return
+        if (category.name == SUSPENSE_CASE_CATEGORY_NAME) {
+            selectLastWatchedChannelInCategory(category)
         }
 
         subPanel.visibility = View.VISIBLE
@@ -177,6 +183,27 @@ class MainActivity : Activity() {
     private fun showChannelList() {
         sidePanel.visibility = View.VISIBLE
         categoryListView.requestFocus()
+    }
+
+    private fun togglePlayback(keyCode: Int): Boolean {
+        if (
+            keyCode != KeyEvent.KEYCODE_DPAD_CENTER &&
+            keyCode != KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+        ) {
+            return false
+        }
+
+        val channel = currentChannel ?: return false
+        if (player.isPlaying) {
+            savePlaybackProgress()
+            player.pause()
+            showStatus("已暂停 ${channel.name} ${formatPlaybackTime(player.currentPosition)}")
+        } else {
+            player.play()
+            scheduleProgressSave()
+            showStatus("继续播放 ${channel.name}")
+        }
+        return true
     }
 
     private fun handleMovieSeekKey(keyCode: Int): Boolean {
@@ -228,6 +255,7 @@ class MainActivity : Activity() {
     }
 
     private fun play(channel: Channel) {
+        hideChannelList()
         savePlaybackProgress()
         currentChannel = channel
         playbackEnded = false
@@ -405,12 +433,12 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun playLastWatchedChannelInCategory(category: ChannelCategory): Boolean {
-        val channelName = playbackHistory.lastChannelName(category) ?: return false
-        val channel = category.channels.firstOrNull { it.name == channelName } ?: return false
+    private fun selectLastWatchedChannelInCategory(category: ChannelCategory) {
+        val channelName = playbackHistory.lastChannelName(category) ?: return
+        val channelIndex = category.channels.indexOfFirst { it.name == channelName }
+        if (channelIndex < 0) return
 
-        play(channel)
-        return true
+        channelListView.setSelection(channelIndex)
     }
 
     private fun savePlaybackProgress(positionMs: Long = player.currentPosition) {

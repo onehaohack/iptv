@@ -45,7 +45,7 @@ describe('tvbox screen wake behavior', () => {
     expect(source).toContain('if (playbackEnded) return')
   })
 
-  it('resumes Xiangcun Love 18 from the last watched episode when opening the folder', () => {
+  it('selects the last watched Suspense Case episode before the user starts playback', () => {
     const activityPath = path.resolve(
       __dirname,
       '../../../tvbox/app/src/main/java/org/onehao/iptvbox/MainActivity.kt',
@@ -57,9 +57,34 @@ describe('tvbox screen wake behavior', () => {
     const activitySource = fs.readFileSync(activityPath, 'utf8')
     const categoriesSource = fs.readFileSync(categoriesPath, 'utf8')
 
-    expect(categoriesSource).toContain('XIANGCUN_LOVE_18_CATEGORY_NAME')
-    expect(activitySource).toContain('playLastWatchedChannelInCategory')
+    expect(categoriesSource).toContain('SUSPENSE_CASE_CATEGORY_NAME')
+    expect(categoriesSource).toContain('const val SUSPENSE_CASE_CATEGORY_NAME = "悬案"')
+    expect(activitySource).toContain('selectLastWatchedChannelInCategory')
+    expect(activitySource).toContain('channelListView.setSelection')
+    expect(activitySource).not.toContain('playLastWatchedChannelInCategory')
     expect(activitySource).toContain('playbackHistory.lastChannelName')
+  })
+
+  it('resumes short progress and maps remote play pause to immediate progress saving', () => {
+    const activityPath = path.resolve(
+      __dirname,
+      '../../../tvbox/app/src/main/java/org/onehao/iptvbox/MainActivity.kt',
+    )
+    const historyPath = path.resolve(
+      __dirname,
+      '../../../tvbox/app/src/main/java/org/onehao/iptvbox/PlaybackHistory.kt',
+    )
+    const activitySource = fs.readFileSync(activityPath, 'utf8')
+    const historySource = fs.readFileSync(historyPath, 'utf8')
+
+    expect(activitySource).toContain('private fun togglePlayback(keyCode: Int): Boolean')
+    expect(activitySource).toContain('KeyEvent.KEYCODE_DPAD_CENTER')
+    expect(activitySource).toContain('KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE')
+    expect(activitySource).toContain('player.pause()')
+    expect(activitySource).toContain('player.play()')
+    expect(activitySource).toContain('private fun play(channel: Channel) {\n        hideChannelList()')
+    expect(activitySource).toContain('private const val RESUME_MIN_POSITION_MS = 1_000L')
+    expect(historySource).toContain('private const val RESUME_MIN_POSITION_MS = 1_000L')
   })
 
   it('cancels scheduled progress saving before clearing a completed episode', () => {

@@ -6,7 +6,7 @@ private const val PREFS_NAME = "onehao_iptv_box"
 private const val PLAYBACK_PROGRESS_PREFIX = "playback_progress:"
 private const val PLAYBACK_SOURCE_PREFIX = "playback_source:"
 private const val LAST_CHANNEL_PREFIX = "last_channel:"
-private const val RESUME_MIN_POSITION_MS = 5_000L
+private const val RESUME_MIN_POSITION_MS = 1_000L
 
 class PlaybackHistory(private val context: Context) {
     fun lastChannelName(category: ChannelCategory): String? {
@@ -51,7 +51,7 @@ class PlaybackHistory(private val context: Context) {
 
     fun shouldRemember(channel: Channel): Boolean {
         return channel.categoryName == LATEST_MOVIES_CATEGORY_NAME ||
-            channel.categoryName == XIANGCUN_LOVE_18_CATEGORY_NAME
+            channel.categoryName == SUSPENSE_CASE_CATEGORY_NAME
     }
 
     private fun prefs() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
