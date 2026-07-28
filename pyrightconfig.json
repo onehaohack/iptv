@@ -1,0 +1,8 @@
+{
+  "executionEnvironments": [
+    {
+      "root": "cache-service",
+      "extraPaths": ["cache-service/src"]
+    }
+  ]
+}
