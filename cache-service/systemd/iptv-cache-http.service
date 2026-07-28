@@ -1,0 +1,14 @@
+[Unit]
+Description=IPTV cached media HTTP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=IPTV_CACHE_DATA_DIR=/vol2/@team/1Tdiskteam/media
+ExecStart=/usr/bin/python3 -m http.server 8788 --bind 0.0.0.0 --directory /vol2/@team/1Tdiskteam/media
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

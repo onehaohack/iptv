@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+target="${1:-all}"
+
+if [[ "$target" != "all" && ! "$target" =~ ^(0[1-9]|1[0-7])$ ]]; then
+  printf 'Usage: %s [01-17|all]\n' "$(basename "$0")" >&2
+  exit 2
+fi
+
+"$service_dir/bin/cache-xuanan" "$target"
+"$service_dir/bin/write-xuanan-playlist"

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+data_dir="${IPTV_CACHE_DATA_DIR:-/vol2/iptv-cache}"
+catalog="$service_dir/catalog/xuanan.tsv"
+target="${1:-all}"
+
+mkdir -p "$data_dir/xuanan"
+
+cache_episode() {
+  local episode="$1"
+  local primary="$2"
+  local fallback="$3"
+  local output="$data_dir/xuanan/${episode}.mp4"
+  local partial="$data_dir/xuanan/.${episode}.part.mp4"
+
+  if [[ -s "$output" ]]; then
+    printf 'episode %s already cached\n' "$episode"
+    return
+  fi
+
+  for source in "$primary" "$fallback"; do
+    rm -f "$partial"
+    printf 'caching episode %s from %s\n' "$episode" "$source"
+    if ffmpeg -nostdin -y -hide_banner -loglevel warning -rw_timeout 15000000 \
+      -allowed_extensions ALL -i "$source" -map 0 -c copy -movflags +faststart -f mp4 "$partial" &&
+      ffprobe -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 "$partial" >/dev/null; then
+      mv "$partial" "$output"
+      printf 'episode %s ready: %s\n' "$episode" "$output"
+      return
+    fi
+  done
+
+  rm -f "$partial"
+  printf 'episode %s failed on both sources\n' "$episode" >&2
+  return 1
+}
+
+while IFS='|' read -r episode _ primary fallback; do
+  [[ -z "$episode" || "$episode" == \#* ]] && continue
+  [[ "$target" == "all" || "$target" == "$episode" ]] || continue
+  cache_episode "$episode" "$primary" "$fallback"
+done < "$catalog"

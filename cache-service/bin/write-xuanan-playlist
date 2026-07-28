@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+data_dir="${IPTV_CACHE_DATA_DIR:-/vol2/iptv-cache}"
+public_base="${IPTV_CACHE_PUBLIC_BASE:-http://192.168.1.5:8788}"
+playlist="$data_dir/xuanan.m3u"
+
+{
+  printf '#EXTM3U\n'
+  for episode in $(seq -w 1 17); do
+    file="$data_dir/xuanan/${episode}.mp4"
+    [[ -s "$file" ]] || continue
+    printf '#EXTINF:-1 group-title="悬案",悬案 第%s集\n%s/xuanan/%s.mp4\n' "$episode" "$public_base" "$episode"
+  done
+} > "$playlist"
