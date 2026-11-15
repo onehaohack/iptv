@@ -217,9 +217,11 @@ guard !pairs.isEmpty else { die("没有可用的轨道") }
 guard writer.startWriting() else {
   die("startWriting 失败：\(writer.error?.localizedDescription ?? "unknown")")
 }
-for job in pairs {
-  guard job.reader.startReading() else {
-    die("startReading 失败：\(job.reader.error?.localizedDescription ?? "unknown")")
+// 先只启动【视频】reader。实测两条 reader 一上来就并发读取，音频 reader 会随机
+// 在开头几个采样报 -11821 直接失败，整条音轨丢失（输出只剩几秒声音）。
+if let videoPair = pairs.first(where: { $0.input.mediaType == .video }) {
+  guard videoPair.reader.startReading() else {
+    die("startReading 失败：\(videoPair.reader.error?.localizedDescription ?? "unknown")")
   }
 }
 
@@ -235,9 +237,10 @@ func note(_ t: CMTime) {
   if s < baseSeconds { baseSeconds = s }
 }
 
-for (index, pair) in pairs.enumerated() {
+// 预读【只走视频轨道】，顺序读取不并发；音频原封不动留给写入阶段。
+if let videoIndex = pairs.firstIndex(where: { $0.input.mediaType == .video }) {
   var buffer: [CMSampleBuffer] = []
-  while buffer.count < PROLOGUE, let sample = pair.output.copyNextSampleBuffer() {
+  while buffer.count < PROLOGUE, let sample = pairs[videoIndex].output.copyNextSampleBuffer() {
     buffer.append(sample)
     let pts = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample))
     guard pts.isFinite else { continue }
@@ -246,9 +249,9 @@ for (index, pair) in pairs.enumerated() {
     note(CMSampleBufferGetDecodeTimeStamp(sample))
   }
   guard !buffer.isEmpty else {
-    die("读不到 \(pair.input.mediaType.rawValue) 采样：\(pair.reader.error?.localizedDescription ?? "unknown")")
+    die("读不到视频采样：\(pairs[videoIndex].reader.error?.localizedDescription ?? "unknown")")
   }
-  prologues[index] = buffer
+  prologues[videoIndex] = buffer
 }
 
 guard baseSeconds.isFinite else { die("读不到有效时间戳") }
@@ -256,6 +259,13 @@ let base = CMTime(seconds: baseSeconds, preferredTimescale: 600)
 debugLog("debug: base=\(baseSeconds)")
 
 writer.startSession(atSourceTime: .zero)
+
+// 预读结束后再启动其余轨道（音频）的 reader。
+for job in pairs where job.reader.status == .unknown {
+  guard job.reader.startReading() else {
+    die("startReading 失败：\(job.input.mediaType.rawValue)：\(job.reader.error?.localizedDescription ?? "unknown")")
+  }
+}
 
 struct TrackClock {
   var lastBase: CMTime = .invalid
@@ -332,10 +342,22 @@ var appendError: String? = nil
 var appendedCounts: [String: Int] = [:]
 let group = DispatchGroup()
 
+// 音频轨在【任何视频写入开始之前】一次性读完存进内存。
+// 实测：音频边读边和视频并发 append 到同一个 writer，会让音频 reader 随机停在
+// 开头（输出只有几秒声音）；先把音频读干净再写，连续多次结果完全一致。
+// 整集音频只有 ~1600 个采样、几 MB，内存无所谓。
+var audioDrained: [Int: [CMSampleBuffer]] = [:]
+for (index, job) in pairs.enumerated() where job.input.mediaType != .video {
+  var buffer: [CMSampleBuffer] = []
+  while let sample = job.output.copyNextSampleBuffer() { buffer.append(sample) }
+  debugLog("debug: 预读 \(job.input.mediaType.rawValue) 采样 \(buffer.count)（reader status=\(job.reader.status.rawValue)）")
+  audioDrained[index] = buffer
+}
+
 for (index, job) in pairs.enumerated() {
   let input = job.input
   let output = job.output
-  let pending = prologues[index] ?? []
+  let pending = prologues[index] ?? (audioDrained[index] ?? [])
   var pendingIndex = 0
   let queue = DispatchQueue(label: "remux.track.\(index)")
   group.enter()
