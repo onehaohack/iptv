@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>荐片下载器</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>荐片下载器</h1>
+      <div class="topbar-right">
+        <span id="root-info" class="root-info"></span>
+        <button id="open-settings" class="btn ghost">设置</button>
+      </div>
+    </header>
+
+    <nav class="steps" id="steps">
+      <span class="step active" data-step="search">1 搜索</span>
+      <span class="step" data-step="line">2 选线路</span>
+      <span class="step" data-step="episodes">3 选集</span>
+      <span class="step" data-step="progress">4 下载</span>
+    </nav>
+
+    <main>
+      <!-- 1. 搜索 -->
+      <section id="view-search" class="view active">
+        <form id="search-form" class="search-form">
+          <input id="search-key" type="search" placeholder="输入片名，例如 冬城猎凶" autocomplete="off" required />
+          <button type="submit" class="btn primary">搜索</button>
+        </form>
+        <div id="search-meta" class="meta"></div>
+        <ul id="search-results" class="results"></ul>
+        <div id="search-pager" class="pager"></div>
+      </section>
+
+      <!-- 2. 选线路 -->
+      <section id="view-line" class="view">
+        <div id="video-head" class="video-head"></div>
+        <div class="row-actions">
+          <button id="back-to-search" class="btn ghost">← 返回搜索</button>
+          <button id="reprobe" class="btn ghost">重新体检线路</button>
+        </div>
+        <div id="probe-meta" class="meta">正在体检线路，请稍候…</div>
+        <ul id="line-list" class="lines"></ul>
+      </section>
+
+      <!-- 3. 选集 -->
+      <section id="view-episodes" class="view">
+        <div id="episode-head" class="video-head"></div>
+        <div class="row-actions">
+          <button id="back-to-line" class="btn ghost">← 返回线路</button>
+          <span class="spacer"></span>
+          <button id="select-all" class="btn ghost">全选</button>
+          <button id="select-none" class="btn ghost">全不选</button>
+        </div>
+        <ul id="episode-list" class="episodes"></ul>
+        <div class="start-bar">
+          <div class="dir-info">
+            <span>保存到</span>
+            <code id="start-dir"></code>
+            <span id="start-free" class="free"></span>
+          </div>
+          <button id="start-download" class="btn primary">开始下载</button>
+        </div>
+      </section>
+
+      <!-- 4. 进度 -->
+      <section id="view-progress" class="view">
+        <div id="progress-head" class="video-head"></div>
+        <div class="row-actions">
+          <button id="back-to-episodes" class="btn ghost">← 新建任务</button>
+          <span class="spacer"></span>
+          <button id="reveal-dir" class="btn ghost">打开目录</button>
+          <button id="pause-job" class="btn ghost">暂停</button>
+          <button id="cancel-job" class="btn danger">取消</button>
+        </div>
+        <div id="job-summary" class="summary"></div>
+        <ul id="progress-list" class="progress-list"></ul>
+      </section>
+
+      <!-- 历史 -->
+      <section id="view-history" class="view">
+        <h2>任务历史</h2>
+        <ul id="history-list" class="history"></ul>
+      </section>
+    </main>
+
+    <!-- 设置抽屉 -->
+    <div id="settings-panel" class="panel hidden">
+      <div class="panel-head">
+        <h2>设置</h2>
+        <button id="close-settings" class="btn ghost">关闭</button>
+      </div>
+      <div class="panel-body">
+        <label class="field">
+          <span>下载目录</span>
+          <div class="field-row">
+            <input id="cfg-root" type="text" spellcheck="false" />
+            <button id="cfg-pick" class="btn ghost">选择…</button>
+          </div>
+          <small id="cfg-root-hint"></small>
+        </label>
+        <label class="field">
+          <span>同时下载集数（1-4）</span>
+          <input id="cfg-ep" type="number" min="1" max="4" />
+        </label>
+        <label class="field">
+          <span>每集并发分片（1-12）</span>
+          <input id="cfg-seg" type="number" min="1" max="12" />
+        </label>
+        <label class="field checkbox">
+          <input id="cfg-fallback" type="checkbox" />
+          <span>某集失败时自动换线路重试</span>
+        </label>
+        <label class="field checkbox">
+          <input id="cfg-remux" type="checkbox" />
+          <span>下载后转封装为 MP4（用系统 avconvert，不重编码）</span>
+        </label>
+        <div class="panel-actions">
+          <button id="save-settings" class="btn primary">保存</button>
+          <span id="settings-msg" class="meta"></span>
+        </div>
+        <p class="hint">配置文件：<code id="cfg-path"></code></p>
+      </div>
+    </div>
+
+    <footer class="bottombar">
+      <button id="toggle-history" class="btn ghost">任务历史</button>
+      <span id="toast" class="toast"></span>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
