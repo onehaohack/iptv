@@ -17,6 +17,18 @@ node server.js --port=8080
 
 首次下载时 `native/remux.swift` 会用 `swiftc` 编译到 `build/remux`（约 10 秒），之后复用。
 
+### Linux 上部署（远程机器）
+
+Linux 没有 swiftc/avconvert，转封装交给外部命令（ffmpeg 直通拷贝，不剪广告）：
+
+```sh
+JIANPIAN_REMUX_CMD='ffmpeg -y -fflags +genpts -i {input} -c copy -map 0 {output}' \
+  node server.js --port=8790 --host=0.0.0.0
+```
+
+`--host=0.0.0.0` 让局域网能访问；默认只监听 127.0.0.1。远程机器上的 systemd 单元见
+`tools/jianpian-downloader/deploy/jianpian.service`。
+
 ## 说明
 
 - 详情接口固定为 `https://japi.zxfmj.com/api/video/detailv2?id=<id>`，对应 Mac 版「荐片」App 的数据源。

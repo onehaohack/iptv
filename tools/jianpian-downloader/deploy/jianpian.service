@@ -1,0 +1,16 @@
+[Unit]
+Description=Jianpian Downloader web service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/onehao/workspace/codex/iptv/tools/jianpian-downloader
+Environment=PATH=/home/onehao/opt/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment="JIANPIAN_REMUX_CMD=/usr/bin/ffmpeg -y -fflags +genpts -i {input} -c copy -map 0 {output}"
+ExecStart=/home/onehao/opt/node/bin/node server.js --port=8790 --host=0.0.0.0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
