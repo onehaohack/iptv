@@ -12,14 +12,19 @@
 // 工具首次使用时用 swiftc 编译到 build/ 下，之后复用。
 
 const fs = require('node:fs/promises')
+const fsSync = require('node:fs')
 const path = require('node:path')
 const { spawn, spawnSync } = require('node:child_process')
 
 const SWIFT_SRC = path.join(__dirname, '..', 'native', 'remux.swift')
 const BUILD_DIR = path.join(__dirname, '..', 'build')
 const BINARY = path.join(BUILD_DIR, 'remux')
-const AVCONVERT = '/usr/bin/avconvert'
-const SWIFTC = '/usr/bin/swiftc'
+const AVCONVERT = process.env.JIANPIAN_AVCONVERT || '/usr/bin/avconvert'
+const SWIFTC = process.env.JIANPIAN_SWIFTC || '/usr/bin/swiftc'
+// Linux 上没有 avconvert，也没有 swiftc：转封装交给外部命令（一般是 ffmpeg）。
+// 设了 JIANPIAN_REMUX_CMD 就完全接管，值里用 {input} {output} 占位，例如：
+//   JIANPIAN_REMUX_CMD='ffmpeg -y -fflags +genpts -i {input} -c copy -map 0 {output}'
+const EXTERNAL_REMUX = process.env.JIANPIAN_REMUX_CMD || null
 const REMUX_TIMEOUT_MS = 20 * 60 * 1000
 const COMPILE_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -35,6 +40,9 @@ async function fileMtime(p) {
 
 // 编译一次就够了；并发下载时用同一个 promise，避免两个 worker 同时调 swiftc。
 function ensureBinary() {
+  // 非 macOS（比如远程 Linux 机器）没有 swiftc，直接走外部命令。
+  if (EXTERNAL_REMUX) return Promise.resolve(null)
+  if (!fsSync.existsSync(SWIFTC)) return Promise.resolve(null)
   if (ensurePromise) return ensurePromise
   ensurePromise = (async () => {
     const srcTime = await fileMtime(SWIFT_SRC)
@@ -90,8 +98,21 @@ function avconvertFallback(source, output) {
   return run(AVCONVERT, ['--preset', 'PresetPassthrough', '--source', source, '--output', output, '--replace'])
 }
 
+// Linux 上的等价做法：外部命令直通拷贝。{input}/{output} 占位替换。
+function externalRemux(source, output) {
+  const cmd = EXTERNAL_REMUX.replace(/\{input\}/g, JSON.stringify(source)).replace(/\{output\}/g, JSON.stringify(output))
+  return run('/bin/sh', ['-c', cmd])
+}
+
 // 返回 { ok, bytes, cutSec, engine, error }
 async function remuxToMp4(source, output) {
+  if (EXTERNAL_REMUX) {
+    const res = await externalRemux(source, output)
+    const bytes = await fileSize(output)
+    if (res.ok && bytes > 0) return { ok: true, bytes, cutSec: 0, engine: 'external' }
+    return { ok: false, engine: 'external', error: res.stderr || res.error || '外部转封装失败' }
+  }
+
   let binary = null
   let compileError = null
   try {
