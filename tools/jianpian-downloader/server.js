@@ -312,6 +312,7 @@ async function main() {
 
   const argPort = Number((process.argv.find(a => a.startsWith('--port=')) || '').split('=')[1])
   const port = Number.isFinite(argPort) && argPort ? argPort : settingsState.current.port
+  const argHost = (process.argv.find(a => a.startsWith('--host=')) || '').split('=')[1] || null
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
@@ -323,8 +324,10 @@ async function main() {
     }
   })
 
-  server.listen(port, '127.0.0.1', () => {
-    console.log(`荐片下载器 http://127.0.0.1:${port}`)
+  // 默认只监听本机；--host=0.0.0.0 时允许局域网访问（远程部署用）。
+  const host = argHost || '127.0.0.1'
+  server.listen(port, host, () => {
+    console.log(`荐片下载器 http://${host === '0.0.0.0' ? '<本机IP>' : host}:${port}`)
     console.log(`下载目录 ${settingsState.current.downloadRoot}`)
     console.log(`配置文件 ${settings.CONFIG_FILE}`)
   })
