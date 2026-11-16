@@ -155,7 +155,7 @@ function renderVideoHead(v) {
 
 async function loadProbes(force) {
   if (!state.video) return
-  $('#probe-meta').textContent = force ? '重新体检线路…' : '正在体检线路，请稍候…（每条约需几秒）'
+  $('#probe-meta').textContent = force ? '重新体检线路…' : '正在体检线路，请稍候…（剧集只抽测几集）'
   try {
     const data = await api(`/api/probe?id=${state.video.id}${force ? '&force=1' : ''}`)
     state.probes = data.probes
@@ -179,7 +179,7 @@ function renderLines() {
         <div class="line-name">${esc(p.name)}</div>
         ${badge}
         <div class="line-stats">
-          <span>${p.alive}/${p.total} 集</span>
+          <span>${p.sampled ? `抽测 ${p.alive}/${p.total} 集（共 ${p.episodeCount} 集）` : `${p.alive}/${p.total} 集`}</span>
           ${p.resolution ? `<span>${esc(p.resolution)}</span>` : ''}
           ${p.mbps ? `<span>${p.mbps.toFixed(2)} MB/s</span>` : ''}
           ${p.host ? `<span>${esc(p.host)}</span>` : ''}

@@ -1,5 +1,7 @@
 // 线路体检：并发探测每条线路的可用集数，并用首片估算速度。
 // 实测 14 条线路里有 3 条整体连不上（都指向 mv.gzlcl.com），必须能在几秒内判负。
+// 剧集按「抽样」体检：只测第 1 集 + 均匀抽样的几集，整条线路连不上靠这几集就够判负；
+// 个别集缺片由下载时的重试兜底。电影只有 1 集，仍是全量体检。
 
 const { resolvePlaylist } = require('./hls')
 const { UA } = require('./jianpian')
@@ -10,6 +12,18 @@ const LINE_PROBE_CONCURRENCY = 4
 const EPISODE_PROBE_CONCURRENCY = 5
 const SPEED_TEST_SEGMENTS = 2
 const CACHE_TTL_MS = 5 * 60 * 1000
+const SERIES_SAMPLE_COUNT = 4 // 剧集抽样集数：第 1 集 + 按集数均匀分布的几集（含末集）
+
+// 体检要探哪些集。剧集只抽 SAMPLE 集（必含第 1 集），电影全量。
+function episodesToProbe(line) {
+  const eps = line.episodes
+  if (eps.length <= SERIES_SAMPLE_COUNT) return eps
+  const picks = new Set([0])
+  for (let k = 1; k < SERIES_SAMPLE_COUNT; k++) {
+    picks.add(Math.round((k * (eps.length - 1)) / (SERIES_SAMPLE_COUNT - 1)))
+  }
+  return [...picks].sort((a, b) => a - b).map(i => eps[i])
+}
 
 const cache = new Map()
 
@@ -78,7 +92,8 @@ async function mapWithLimit(items, limit, fn) {
 }
 
 async function probeLine(line) {
-  const perEpisode = await mapWithLimit(line.episodes, EPISODE_PROBE_CONCURRENCY, async ep => {
+  const samples = episodesToProbe(line)
+  const perEpisode = await mapWithLimit(samples, EPISODE_PROBE_CONCURRENCY, async ep => {
     const r = await probeEpisode(ep)
     return { sort: ep.sort, ...r }
   })
@@ -92,7 +107,9 @@ async function probeLine(line) {
     name: line.name,
     host: line.host,
     alive: okList.length,
-    total: line.episodes.length,
+    total: samples.length,
+    episodeCount: line.episodes.length,
+    sampled: samples.length < line.episodes.length,
     usable: okList.length > 0,
     encrypted: okList.some(r => r.encrypted),
     failedEpisodes: perEpisode.filter(r => !r.ok).map(r => ({ sort: r.sort, error: r.error })),
