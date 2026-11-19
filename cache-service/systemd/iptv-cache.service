@@ -1,0 +1,17 @@
+[Unit]
+Description=IPTV episode cache service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/onehao/iptv-cache-service
+Environment=IPTV_CACHE_DATA_DIR=/vol2/iptv-cache
+Environment=IPTV_CACHE_PUBLIC_BASE=http://192.168.1.5:8788
+Environment=PYTHONPATH=/home/onehao/iptv-cache-service/src
+ExecStart=/home/onehao/iptv-cache-service/.venv/bin/python -c 'from iptv_cache.main import main; main()'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

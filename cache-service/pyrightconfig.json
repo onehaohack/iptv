@@ -1,0 +1,4 @@
+{
+  "extraPaths": ["src"],
+  "reportUnusedFunction": false
+}

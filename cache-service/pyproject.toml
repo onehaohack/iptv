@@ -34,9 +34,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["COM812", "CPY001", "D", "INP001", "S101", "TC001"]
+ignore = ["C901", "COM812", "CPY001", "D", "INP001", "S101", "S104", "S603", "TC001", "TC003"]
 
 [tool.basedpyright]
 typeCheckingMode = "all"
 venvPath = "."
 venv = ".venv"
+reportUnusedFunction = false

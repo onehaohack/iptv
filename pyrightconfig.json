@@ -1,4 +1,5 @@
 {
+  "reportUnusedFunction": false,
   "executionEnvironments": [
     {
       "root": "cache-service",
